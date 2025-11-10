@@ -137,6 +137,21 @@ pub const State = struct {
         var i = state.snake.len - 1;
         while (i > 0) : (i -= 1) state.snake.body[i] = state.snake.body[i - 1];
         state.snake.body[0] = new_head;
+
+        // All segments should be adjacent.
+        const snake = state.get_snake();
+        for (0..snake.len - 1) |idx| {
+            const curr = snake[idx];
+            const next = snake[idx + 1];
+            const dx = @abs(curr.x - next.x);
+            const dy = @abs(curr.y - next.y);
+            // Segments must be exactly 1 unit apart in one direction.
+            const is_adjacent = (dx == 1 and dy == 0) or (dx == 0 and dy == 1);
+            std.debug.assert(is_adjacent);
+        }
+
+        // No segments should overlap.
+        for (snake, 0..) |a, idx| for (snake[idx + 1 ..]) |b| std.debug.assert(!a.eql(b));
     }
 
     pub fn render(state: *const State, writer: anytype) !void {
@@ -494,50 +509,5 @@ test "fuzz: all segments stay in bounds when alive" {
 
             game.tick(game.autoPlay());
         }
-    }
-}
-
-test "fuzz: no duplicate segments" {
-    for (0..50) |seed| {
-        var game = State.init(seed);
-
-        for (0..300) |tick| {
-            if (!game.snake.alive) break;
-
-            const snake = game.get_snake();
-            for (snake, 0..) |seg1, i|
-                for (snake[i + 1 ..]) |seg2| std.testing.expect(!seg1.eql(seg2)) catch |e| {
-                    std.debug.print("Seed ({d}), tick ({d})\n", .{ seed, tick });
-                    return e;
-                };
-
-            game.tick(game.autoPlay());
-        }
-    }
-}
-
-test "all snake segments are adjacent" {
-    var game = State.init(null);
-
-    for (0..500) |_| {
-        if (!game.snake.alive) break;
-
-        const snake = game.get_snake();
-
-        // Check each adjacent pair.
-        for (0..snake.len - 1) |i| {
-            const curr = snake[i];
-            const next = snake[i + 1];
-
-            const dx = @abs(curr.x - next.x);
-            const dy = @abs(curr.y - next.y);
-
-            // Segments must be exactly 1 unit apart in one direction.
-            const is_adjacent = (dx == 1 and dy == 0) or (dx == 0 and dy == 1);
-
-            try std.testing.expect(is_adjacent);
-        }
-
-        game.tick(game.autoPlay());
     }
 }
