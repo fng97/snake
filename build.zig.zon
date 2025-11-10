@@ -1,0 +1,11 @@
+.{
+    .name = .snake,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.15.2",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+    .fingerprint = 0x516d6b9e426bf186,
+}
