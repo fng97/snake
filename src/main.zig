@@ -1,26 +1,5 @@
 const std = @import("std");
 
-// TODO: Replace with Zig RNG
-// Simple deterministic RNG: Marsaglia Xorshift
-const Rng = struct {
-    state: u64,
-
-    pub fn init(seed: u64) Rng {
-        return .{ .state = seed };
-    }
-
-    pub fn next(rng: *Rng) u64 {
-        rng.state ^= rng.state << 13;
-        rng.state ^= rng.state >> 17;
-        rng.state ^= rng.state << 5;
-        return rng.state;
-    }
-
-    pub fn range(rng: *Rng, min: u64, max: u64) u64 {
-        return min + (rng.next() % (max - min));
-    }
-};
-
 const Point = struct {
     x: i8,
     y: i8,
@@ -61,7 +40,7 @@ pub const State = struct {
 
     snake: Snake,
     food: Point,
-    rng: Rng,
+    prng: std.Random.DefaultPrng,
     tick_count: u32 = 0,
     score: u32 = 0,
 
@@ -74,14 +53,18 @@ pub const State = struct {
         alive: bool = true,
     };
 
-    pub fn init(seed: u64) State {
+    fn rng(state: *State) std.Random {
+        return state.prng.random();
+    }
+
+    pub fn init(seed: ?u64) State {
         var game = State{
             .snake = .{
                 .len = 3,
                 .direction = .right,
             },
             .food = .{ .x = 0, .y = 0 },
-            .rng = Rng.init(seed),
+            .prng = .init(seed orelse std.testing.random_seed),
         };
 
         // Start snake in the middle.
@@ -102,8 +85,8 @@ pub const State = struct {
     fn spawn_food(state: *State) void {
         outer: for (0..State.Snake.max_length) |_| { // instead of a while loop
             const point = Point{
-                .x = @as(i8, @intCast(state.rng.range(0, frame_width))),
-                .y = @as(i8, @intCast(state.rng.range(0, frame_height))),
+                .x = state.rng().intRangeLessThan(i8, 0, frame_width),
+                .y = state.rng().intRangeLessThan(i8, 0, frame_height),
             };
 
             // Check if point would collide with snake.
@@ -143,7 +126,8 @@ pub const State = struct {
         }
 
         // Check for collision with self.
-        for (state.snake.body[0 .. state.snake.len - 1]) |segment| if (segment.eql(new_head)) {
+        const len_to_check = if (grow) state.snake.len else state.snake.len - 1;
+        for (state.snake.body[0..len_to_check]) |segment| if (segment.eql(new_head)) {
             state.snake.alive = false;
             return;
         };
@@ -206,7 +190,7 @@ pub const State = struct {
         const head = state.snake.body[0];
 
         // 70% chance to move towards food.
-        if (state.rng.range(0, 10) < 7) {
+        if (state.rng().intRangeLessThan(i8, 0, 10) < 7) {
             if (state.food.x > head.x and state.snake.direction != .left) {
                 return .right;
             } else if (state.food.x < head.x and state.snake.direction != .right) {
@@ -220,7 +204,7 @@ pub const State = struct {
 
         // Random valid move.
         const dirs = [_]Direction{ .up, .down, .left, .right };
-        const choice = dirs[state.rng.range(0, 4)];
+        const choice = dirs[state.rng().intRangeLessThan(usize, 0, 4)];
 
         // Don't go backwards.
         if (choice.opposite() != state.snake.direction) {
@@ -236,7 +220,7 @@ pub fn main() !void {
     const stdout = &stdout_writer.interface;
 
     // Use a fixed seed for now for deterministic behavior.
-    var game = State.init(12345);
+    var game = State.init(std.testing.random_seed);
 
     while (game.snake.alive) {
         try game.render(stdout);
@@ -249,8 +233,8 @@ pub fn main() !void {
 }
 
 test "ticks are deterministic" {
-    var game_a = State.init(std.testing.random_seed);
-    var game_b = State.init(std.testing.random_seed);
+    var game_a = State.init(null);
+    var game_b = State.init(null);
 
     for (0..1000) |_| {
         game_a.tick(game_a.autoPlay());
@@ -291,8 +275,8 @@ test "terminal output is deterministic" {
     var game_b_output = BufferWriter{};
     defer game_b_output.deinit();
 
-    var game_a = State.init(std.testing.random_seed);
-    var game_b = State.init(std.testing.random_seed);
+    var game_a = State.init(null);
+    var game_b = State.init(null);
 
     for (0..100) |_| {
         game_a.tick(game_a.autoPlay());
@@ -306,7 +290,7 @@ test "terminal output is deterministic" {
 }
 
 test "snake can't reverse direction" {
-    var game = State.init(std.testing.random_seed);
+    var game = State.init(null);
     game.snake.direction = .right;
 
     game.tick(.left); // try to go backwards
@@ -317,7 +301,7 @@ test "snake can't reverse direction" {
 }
 
 test "eating food increases score and length" {
-    var game = State.init(std.testing.random_seed);
+    var game = State.init(null);
     const initial_len = game.snake.len;
     const initial_score = game.score;
 
@@ -333,86 +317,116 @@ test "eating food increases score and length" {
 }
 
 test "hitting wall kills snake" {
-    var game = State.init(std.testing.random_seed);
-
-    game.snake.body[0] = .{ .x = 0, .y = 0 };
-    game.snake.body[1] = .{ .x = 0, .y = 1 };
-    game.snake.body[2] = .{ .x = 0, .y = 2 };
-    game.snake.direction = .up;
+    var game = State.init(null);
 
     // Before:
-    //
     // +--
     // |@  <- head
     // |#
     // |#
-    //
+    game.snake.body[0] = .{ .x = 0, .y = 0 };
+    game.snake.body[1] = .{ .x = 0, .y = 1 };
+    game.snake.body[2] = .{ .x = 0, .y = 2 };
+    game.snake.direction = .up;
+    try std.testing.expect(game.snake.alive);
+
     // After:
-    //
     // +X- <- head hits wall
     // |#
     // |#
     // |
-    game.tick(null);
-
+    game.tick(.up);
     try std.testing.expect(!game.snake.alive);
 }
 
 test "snake collision with self" {
-    var game = State.init(std.testing.random_seed);
+    var game = State.init(null);
 
+    // Before:
+    // +---
+    // |#@  <- head
+    // |### <- tail
     game.snake.len = 5;
     game.snake.body[0] = .{ .x = 1, .y = 0 };
     game.snake.body[1] = .{ .x = 0, .y = 0 };
     game.snake.body[2] = .{ .x = 0, .y = 1 };
     game.snake.body[3] = .{ .x = 1, .y = 1 };
     game.snake.body[4] = .{ .x = 2, .y = 1 };
-    game.snake.direction = .down;
+    game.snake.direction = .right;
+    try std.testing.expect(game.snake.alive);
 
-    // Before:
-    //
-    // +---
-    // |#@  <- head
-    // |### <- tail
-    //
     // After:
-    //
     // +---
     // |##
     // |#X  <- head hits tail
-    game.tick(null);
-
+    game.tick(.down);
     try std.testing.expect(!game.snake.alive);
 }
 
 test "snake head moving to previous tail is ok" {
-    var game = State.init(std.testing.random_seed);
+    var game = State.init(null);
 
+    // Before:
+    // +--
+    // |#@ <- head
+    // |## <- tail
     game.snake.len = 4;
     game.snake.body[0] = .{ .x = 1, .y = 0 };
     game.snake.body[1] = .{ .x = 0, .y = 0 };
     game.snake.body[2] = .{ .x = 0, .y = 1 };
     game.snake.body[3] = .{ .x = 1, .y = 1 };
-    game.snake.direction = .down;
+    game.snake.direction = .right;
+    try std.testing.expect(game.snake.alive);
 
-    // Before:
-    //
-    // +--
-    // |#@ <- head
-    // |## <- tail
-    //
     // After:
-    //
     // +--
     // |##
     // |#@ <- head moves to where tail was before (no collision)
-    game.tick(null);
-
+    game.tick(.down);
     try std.testing.expect(game.snake.alive);
 }
 
+test "snake head at just-extended tail dies" {
+    var game = State.init(null);
+
+    // Start:
+    // +---
+    // |##@ <- head
+    // |# * <- food
+    // |###
+    // |  # <- tail
+    game.snake.len = 8;
+    game.snake.body[0] = .{ .x = 2, .y = 0 };
+    game.snake.body[1] = .{ .x = 1, .y = 0 };
+    game.snake.body[2] = .{ .x = 0, .y = 0 };
+    game.snake.body[3] = .{ .x = 0, .y = 1 };
+    game.snake.body[4] = .{ .x = 0, .y = 2 };
+    game.snake.body[5] = .{ .x = 1, .y = 2 };
+    game.snake.body[6] = .{ .x = 2, .y = 2 };
+    game.snake.body[7] = .{ .x = 2, .y = 3 };
+    game.snake.direction = .right;
+    game.food = .{ .x = 2, .y = 1 };
+    try std.testing.expect(game.snake.alive);
+
+    // Snake eats food:
+    // +---
+    // |###
+    // |# @ <- head turns down and gobbles food
+    // |### <- tail (extended in current tick but not yet rendered)
+    game.tick(.down);
+    try std.testing.expect(game.snake.alive);
+
+    // Head collides with extended tail:
+    // +---
+    // |###
+    // |# #
+    // |##X <- head moves to where we just extended the tail (collision)
+    game.tick(.down);
+    try std.testing.expect(!game.snake.alive);
+}
+
 test "snake body follows head" {
-    var game = State.init(std.testing.random_seed);
+    var game = State.init(null);
 
     game.snake.len = 3;
     game.snake.body[0] = .{ .x = 5, .y = 5 };
@@ -428,7 +442,7 @@ test "snake body follows head" {
 }
 
 test "food never spawns on snake" {
-    var game = State.init(std.testing.random_seed);
+    var game = State.init(null);
 
     for (0..100) |_| {
         game.spawn_food();
@@ -437,7 +451,7 @@ test "food never spawns on snake" {
 }
 
 test "dead snake doesn't move" {
-    var game = State.init(std.testing.random_seed);
+    var game = State.init(null);
     game.snake.alive = false;
 
     const head_before = game.snake.body[0];
@@ -450,7 +464,7 @@ test "dead snake doesn't move" {
 }
 
 test "score correlates with length growth" {
-    var game = State.init(std.testing.random_seed);
+    var game = State.init(null);
     const starting_len = 3;
 
     try std.testing.expectEqual(@as(u32, 0), game.score);
@@ -487,15 +501,15 @@ test "fuzz: no duplicate segments" {
     for (0..50) |seed| {
         var game = State.init(seed);
 
-        for (0..300) |_| {
+        for (0..300) |tick| {
             if (!game.snake.alive) break;
 
             const snake = game.get_snake();
-            for (snake, 0..) |seg1, i| {
-                for (snake[i + 1 ..]) |seg2| {
-                    try std.testing.expect(!seg1.eql(seg2));
-                }
-            }
+            for (snake, 0..) |seg1, i|
+                for (snake[i + 1 ..]) |seg2| std.testing.expect(!seg1.eql(seg2)) catch |e| {
+                    std.debug.print("Seed ({d}), tick ({d})\n", .{ seed, tick });
+                    return e;
+                };
 
             game.tick(game.autoPlay());
         }
@@ -503,7 +517,7 @@ test "fuzz: no duplicate segments" {
 }
 
 test "all snake segments are adjacent" {
-    var game = State.init(1);
+    var game = State.init(null);
 
     for (0..500) |_| {
         if (!game.snake.alive) break;
