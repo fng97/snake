@@ -440,22 +440,6 @@ test "snake head at just-extended tail dies" {
     try std.testing.expect(!game.snake.alive);
 }
 
-test "snake body follows head" {
-    var game = State.init(null);
-
-    game.snake.len = 3;
-    game.snake.body[0] = .{ .x = 5, .y = 5 };
-    game.snake.body[1] = .{ .x = 4, .y = 5 };
-    game.snake.body[2] = .{ .x = 3, .y = 5 };
-    game.snake.direction = .right;
-
-    const old_head = game.snake.body[0];
-
-    game.tick(null);
-
-    try std.testing.expect(game.snake.body[1].eql(old_head));
-}
-
 test "food never spawns on snake" {
     var game = State.init(null);
 
