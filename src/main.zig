@@ -101,6 +101,9 @@ pub const State = struct {
         if (!state.snake.alive) return;
         defer state.tick_count += 1;
 
+        std.debug.assert(state.get_snake().len != 0);
+        std.debug.assert(state.get_snake().len < State.Snake.max_length);
+
         // Make sure the snake can't go back on itself. Instead keep previous direction.
         if (input_direction) |direction| {
             if (state.snake.direction != direction.opposite()) state.snake.direction = direction;
@@ -131,6 +134,9 @@ pub const State = struct {
             state.snake.alive = false;
             return;
         };
+
+        // TODO: Assert food doesn't overlap with snake by this point.
+        // TODO: Check everything (snake, food) is within frame bounds.
 
         // Move snake (shift everything down).
         if (grow) state.snake.len += 1;
@@ -239,6 +245,21 @@ pub fn main() !void {
 
     while (game.snake.alive) {
         try game.render(stdout);
+        // var move: ?Direction = null;
+        // inputs: while (true) {
+        //     const input = stdin.takeByte() catch |e| switch (e) {
+        //         error.EndOfStream => break :inputs, // no more inputs
+        //         else => return e,
+        //     };
+        //
+        //     switch (input) {
+        //         'w', 'W' => move = .up,
+        //         'a', 'A' => move = .left,
+        //         's', 'S' => move = .down,
+        //         'd', 'D' => move = .right,
+        //         else => {}, // ignore everything else
+        //     }
+        // }
         game.tick(game.autoPlay());
         std.Thread.sleep(100 * std.time.ns_per_ms);
     }
