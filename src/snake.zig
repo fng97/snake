@@ -94,7 +94,7 @@ pub const State = struct {
 
             state.food = point;
             return;
-        }
+        } else unreachable;
     }
 
     pub fn tick(state: *State, input_direction: ?Direction) void {
