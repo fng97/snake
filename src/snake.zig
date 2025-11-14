@@ -1,5 +1,8 @@
 const std = @import("std");
 
+const frame_width = 20;
+const frame_height = 10;
+
 const Point = struct {
     x: i8,
     y: i8,
@@ -34,24 +37,21 @@ const Direction = enum {
     }
 };
 
-pub const State = struct {
-    const frame_width = 20;
-    const frame_height = 10;
+const Snake = struct {
+    const max_length = frame_width * frame_height;
 
+    body: [max_length]Point = undefined,
+    len: usize = 0,
+    direction: Direction = .right,
+    alive: bool = true,
+};
+
+pub const State = struct {
     snake: Snake,
     food: Point,
     prng: std.Random.DefaultPrng,
     tick_count: u32 = 0,
     score: u32 = 0,
-
-    const Snake = struct {
-        const max_length = frame_width * frame_height;
-
-        body: [max_length]Point = undefined,
-        len: usize = 0,
-        direction: Direction = .right,
-        alive: bool = true,
-    };
 
     fn rng(state: *State) std.Random {
         return state.prng.random();
@@ -83,7 +83,7 @@ pub const State = struct {
     }
 
     fn spawn_food(state: *State) void {
-        outer: for (0..State.Snake.max_length) |_| { // instead of a while loop
+        outer: for (0..Snake.max_length) |_| { // instead of a while loop
             const point = Point{
                 .x = state.rng().intRangeLessThan(i8, 0, frame_width),
                 .y = state.rng().intRangeLessThan(i8, 0, frame_height),
@@ -102,7 +102,7 @@ pub const State = struct {
         defer state.tick_count += 1;
 
         std.debug.assert(state.get_snake().len != 0);
-        std.debug.assert(state.get_snake().len < State.Snake.max_length);
+        std.debug.assert(state.get_snake().len < Snake.max_length);
 
         // Make sure the snake can't go back on itself. Instead keep previous direction.
         if (input_direction) |direction| {
@@ -476,8 +476,8 @@ test "fuzz: all segments stay in bounds when alive" {
             if (!game.snake.alive) break;
 
             for (game.get_snake()) |segment| { // all segments must be in bounds
-                try std.testing.expect(segment.x >= 0 and segment.x < State.frame_width);
-                try std.testing.expect(segment.y >= 0 and segment.y < State.frame_height);
+                try std.testing.expect(segment.x >= 0 and segment.x < frame_width);
+                try std.testing.expect(segment.y >= 0 and segment.y < frame_height);
             }
 
             game.tick(game.autoPlay());
