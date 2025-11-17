@@ -104,7 +104,7 @@ pub const State = struct {
         std.debug.assert(state.get_snake().len != 0);
         std.debug.assert(state.get_snake().len < Snake.max_length);
 
-        // Make sure the snake can't go back on itself. Instead keep previous direction.
+        // Make sure the snake cannot go back on itself. Instead keep previous direction.
         if (input_direction) |direction| {
             if (state.snake.direction != direction.opposite()) state.snake.direction = direction;
         }
@@ -135,7 +135,7 @@ pub const State = struct {
             return;
         };
 
-        // TODO: Assert food doesn't overlap with snake by this point.
+        // TODO: Assert food does not overlap with snake by this point.
         // TODO: Check everything (snake, food) is within frame bounds.
 
         // Move snake (shift everything down).
@@ -205,8 +205,69 @@ pub const State = struct {
         if (!state.snake.alive) try writer.print("GAME OVER!\n", .{});
     }
 
-    // Auto-play with random movements.
-    pub fn autoPlay(state: *State) Direction {
+    // Move the snake using the RNG.
+    pub fn auto_play(state: *State) Direction {
+        // Most of the time, try go towards food.
+        if (state.random().uintAtMost(u8, 100) < 80) good_move: {
+            const head = state.snake.body[0];
+
+            // Find out what directions are safe to move in.
+            const directions = std.meta.tags(Direction);
+            var safe_directions: [directions.len]Direction = undefined;
+            var safe_directions_count: u8 = 0;
+            for (directions) |direction| {
+                if (direction == state.snake.direction.opposite()) continue;
+                // TODO: Basically the same as the checks in the game. Abstract this.
+                if (is_safe: {
+                    const new_head = head.move(direction);
+
+                    // Snake should not hit the wall.
+                    if (new_head.x < 0 or new_head.x >= frame_width) break :is_safe false;
+                    if (new_head.y < 0 or new_head.y >= frame_height) break :is_safe false;
+
+                    // Snake should not hit itself.
+                    const would_grow = new_head.eql(state.food);
+                    const snake = state.get_snake();
+                    // For non-growing moves it is OK to move to the current tail cell because the
+                    // tail will have moved.
+                    const segments_to_check = if (would_grow) snake.len else snake.len - 1;
+                    for (snake[0..segments_to_check]) |segment| {
+                        if (segment.eql(new_head)) break :is_safe false;
+                    }
+
+                    break :is_safe true;
+                }) {
+                    safe_directions[safe_directions_count] = direction;
+                    safe_directions_count += 1;
+                }
+            }
+
+            if (safe_directions_count == 0) break :good_move; // random it is
+
+            // Pick the safe direction with the shortest Manhattan distance to the food.
+            var best_directions: [directions.len]Direction = undefined;
+            var best_directions_count: u8 = 0;
+            var best_distance: u8 = 0;
+            for (safe_directions[0..safe_directions_count]) |direction| {
+                const new_head = head.move(direction);
+                const dx = @as(u8, @intCast(@abs(new_head.x - state.food.x)));
+                const dy = @as(u8, @intCast(@abs(new_head.y - state.food.y)));
+                const distance = dx + dy;
+
+                if (best_directions_count == 0 or distance < best_distance) {
+                    best_distance = distance;
+                    best_directions[0] = direction;
+                    best_directions_count = 1;
+                } else if (distance == best_distance) {
+                    best_directions[best_directions_count] = direction;
+                    best_directions_count += 1;
+                }
+            }
+
+            return best_directions[state.random().uintAtMost(u8, best_directions_count - 1)];
+        }
+
+        // Otherwise, play a random move.
         return state.random().enumValue(Direction);
     }
 };
@@ -216,8 +277,8 @@ test "ticks are deterministic" {
     var game_b = State.init(null);
 
     for (0..1000) |_| {
-        game_a.tick(game_a.autoPlay());
-        game_b.tick(game_b.autoPlay());
+        game_a.tick(game_a.auto_play());
+        game_b.tick(game_b.auto_play());
 
         try std.testing.expectEqual(game_a, game_b);
     }
@@ -258,8 +319,8 @@ test "terminal output is deterministic" {
     var game_b = State.init(null);
 
     for (0..100) |_| {
-        game_a.tick(game_a.autoPlay());
-        game_b.tick(game_b.autoPlay());
+        game_a.tick(game_a.auto_play());
+        game_b.tick(game_b.auto_play());
 
         try game_a.render(game_a_output.writer());
         try game_b.render(game_b_output.writer());
@@ -455,7 +516,7 @@ test "fuzz: all segments stay in bounds when alive" {
                 try std.testing.expect(segment.y >= 0 and segment.y < frame_height);
             }
 
-            game.tick(game.autoPlay());
+            game.tick(game.auto_play());
         }
     }
 }

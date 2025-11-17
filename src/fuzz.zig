@@ -22,12 +22,12 @@ pub fn main() !void {
     }) {
         var game = snake.State.init(seed);
 
-        while (game.snake.alive) game.tick(game.autoPlay());
+        while (game.snake.alive) game.tick(game.auto_play());
 
         if (game.score > best_score) {
             std.debug.print(
-                "Best score (of {d} games): {d}\n\tzig build run -- --seed={d}\n",
-                .{ games, game.score, seed },
+                "Best score (of {d} games): {d}\n\tzig build run -- --seed={d}  # SCORE: {d}\n",
+                .{ games, game.score, seed, game.score },
             );
             best_score = game.score;
         }

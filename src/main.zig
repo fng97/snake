@@ -26,22 +26,7 @@ pub fn main() !void {
 
     while (game.snake.alive) {
         try game.render(stdout);
-        // var move: ?Direction = null;
-        // inputs: while (true) {
-        //     const input = stdin.takeByte() catch |e| switch (e) {
-        //         error.EndOfStream => break :inputs, // no more inputs
-        //         else => return e,
-        //     };
-        //
-        //     switch (input) {
-        //         'w', 'W' => move = .up,
-        //         'a', 'A' => move = .left,
-        //         's', 'S' => move = .down,
-        //         'd', 'D' => move = .right,
-        //         else => {}, // ignore everything else
-        //     }
-        // }
-        game.tick(game.autoPlay());
+        game.tick(game.auto_play());
         if (!fast) std.Thread.sleep(100 * std.time.ns_per_ms);
     }
     try game.render(stdout); // final render
