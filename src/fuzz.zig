@@ -2,23 +2,34 @@ const std = @import("std");
 const snake = @import("snake.zig");
 
 pub fn main() !void {
-    const global_seed = std.testing.random_seed;
-    var prng = std.Random.DefaultPrng.init(global_seed);
+    const seed_global = blk: {
+        var seed: u64 = undefined;
+        try std.posix.getrandom(std.mem.asBytes(&seed));
+        break :blk seed;
+    };
+    var prng = std.Random.DefaultPrng.init(seed_global);
     const random = prng.random();
 
-    std.debug.print("Starting fuzzer with global seed: {d}\n", .{global_seed});
+    std.debug.print("Starting fuzzer with global seed: {d}\n", .{seed_global});
 
-    std.debug.print("Printing one (.) every million seeds", .{});
+    var best_score: u64 = 0;
+
     var seed = random.int(u64);
-    var i: usize = 1;
+    var games: usize = 1;
     while (true) : ({
         seed = random.int(u64);
-        i += 1;
+        games += 1;
     }) {
         var game = snake.State.init(seed);
-        while (game.snake.alive) {
-            game.tick(game.autoPlay());
-            if (i % 1_000_000 == 0) std.debug.print(".", .{});
+
+        while (game.snake.alive) game.tick(game.autoPlay());
+
+        if (game.score > best_score) {
+            std.debug.print(
+                "Best score (of {d} games): {d}\n\tzig build run -- --seed={d}\n",
+                .{ games, game.score, seed },
+            );
+            best_score = game.score;
         }
     }
 }

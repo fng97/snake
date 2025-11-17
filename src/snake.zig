@@ -53,7 +53,7 @@ pub const State = struct {
     tick_count: u32 = 0,
     score: u32 = 0,
 
-    fn rng(state: *State) std.Random {
+    fn random(state: *State) std.Random {
         return state.prng.random();
     }
 
@@ -85,8 +85,8 @@ pub const State = struct {
     fn spawn_food(state: *State) void {
         outer: for (0..Snake.max_length) |_| { // instead of a while loop
             const point = Point{
-                .x = state.rng().intRangeLessThan(i8, 0, frame_width),
-                .y = state.rng().intRangeLessThan(i8, 0, frame_height),
+                .x = state.random().intRangeLessThan(i8, 0, frame_width),
+                .y = state.random().intRangeLessThan(i8, 0, frame_height),
             };
 
             // Check if point would collide with snake.
@@ -207,32 +207,7 @@ pub const State = struct {
 
     // Auto-play with random movements.
     pub fn autoPlay(state: *State) Direction {
-        // Simple strategy: mostly go towards food, sometimes random.
-        const head = state.snake.body[0];
-
-        // 70% chance to move towards food.
-        if (state.rng().intRangeLessThan(i8, 0, 10) < 7) {
-            if (state.food.x > head.x and state.snake.direction != .left) {
-                return .right;
-            } else if (state.food.x < head.x and state.snake.direction != .right) {
-                return .left;
-            } else if (state.food.y > head.y and state.snake.direction != .up) {
-                return .down;
-            } else if (state.food.y < head.y and state.snake.direction != .down) {
-                return .up;
-            }
-        }
-
-        // Random valid move.
-        const dirs = [_]Direction{ .up, .down, .left, .right };
-        const choice = dirs[state.rng().intRangeLessThan(usize, 0, 4)];
-
-        // Don't go backwards.
-        if (choice.opposite() != state.snake.direction) {
-            return choice;
-        }
-
-        return state.snake.direction;
+        return state.random().enumValue(Direction);
     }
 };
 
