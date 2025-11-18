@@ -1,5 +1,6 @@
 const std = @import("std");
 const snake = @import("snake.zig");
+const config = @import("config");
 
 pub fn main() !void {
     const seed_global = blk: {
@@ -26,8 +27,9 @@ pub fn main() !void {
 
         if (game.score > best_score) {
             std.debug.print(
-                "Best score (of {d} games): {d}\n\tzig build run -- --seed={d}  # SCORE: {d}\n",
-                .{ games, game.score, seed, game.score },
+                "Best score (of {d} games): {d}\n" ++
+                    "\tzig build run -- --seed={d}  # ({s}) SCORE: {d}\n",
+                .{ games, game.score, seed, config.commit, game.score },
             );
             best_score = game.score;
         }

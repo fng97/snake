@@ -34,6 +34,18 @@ pub fn build(b: *std.Build) void {
     const fuzz_step = b.step("fuzz", "Run the fuzzer");
     const fuzz_cmd = b.addRunArtifact(fuzz);
     fuzz_step.dependOn(&fuzz_cmd.step);
+    // Make git commit available so that displayed fuzzing runs are reproducible from the commit and
+    // the seed.
+    const config = b.addOptions();
+    const commit = std.mem.trimRight(u8, b.run(&.{
+        "git",
+        "rev-parse",
+        "--verify",
+        "--short", // short hash is fine for a small project like this
+        "HEAD",
+    }), "\n");
+    config.addOption([]const u8, "commit", commit);
+    fuzz.root_module.addOptions("config", config);
 
     // See https://zigtools.org/zls/guides/build-on-save/.
     const check_step = b.step("check", "Check everything compiles");
