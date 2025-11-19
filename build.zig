@@ -47,6 +47,18 @@ pub fn build(b: *std.Build) void {
     config.addOption([]const u8, "commit", commit);
     fuzz.root_module.addOptions("config", config);
 
+    const bench = b.addExecutable(.{
+        .name = "bench",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/bench.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    const bench_step = b.step("bench", "Run the bench");
+    const bench_cmd = b.addRunArtifact(bench);
+    bench_step.dependOn(&bench_cmd.step);
+
     // See https://zigtools.org/zls/guides/build-on-save/.
     const check_step = b.step("check", "Check everything compiles");
     const check_exe = b.addExecutable(.{ .name = "check_exe", .root_module = exe.root_module });
