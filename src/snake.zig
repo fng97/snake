@@ -21,7 +21,7 @@ const Point = struct {
     }
 };
 
-const Direction = enum {
+pub const Direction = enum {
     up,
     down,
     left,
@@ -109,7 +109,7 @@ pub const State = struct {
             if (state.snake.direction != direction.opposite()) state.snake.direction = direction;
         }
 
-        // Calculate new head position
+        // Calculate new head position.
         const head = state.snake.body[0];
         const new_head = head.move(state.snake.direction);
 

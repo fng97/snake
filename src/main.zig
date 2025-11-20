@@ -37,3 +37,41 @@ pub fn main() !void {
 test snake {
     _ = @import("snake.zig");
 }
+
+test "fuzz" {
+    const ByteMoves = packed struct(u8) {
+        mv0: u2,
+        mv1: u2,
+        mv2: u2,
+        mv3: u2,
+
+        pub fn move_0(byte_moves: *const @This()) snake.Direction {
+            return std.meta.intToEnum(snake.Direction, byte_moves.mv0) catch unreachable;
+        }
+        pub fn move_1(byte_moves: *const @This()) snake.Direction {
+            return std.meta.intToEnum(snake.Direction, byte_moves.mv1) catch unreachable;
+        }
+        pub fn move_2(byte_moves: *const @This()) snake.Direction {
+            return std.meta.intToEnum(snake.Direction, byte_moves.mv2) catch unreachable;
+        }
+        pub fn move_3(byte_moves: *const @This()) snake.Direction {
+            return std.meta.intToEnum(snake.Direction, byte_moves.mv3) catch unreachable;
+        }
+    };
+
+    const Context = struct {
+        state: snake.State,
+
+        fn testOne(ctx: *@This(), input: []const u8) anyerror!void {
+            for (input) |byte| {
+                const moves: ByteMoves = @bitCast(byte);
+                ctx.state.tick(moves.move_0());
+            }
+        }
+    };
+
+    var ctx = Context{
+        .state = snake.State.init(0),
+    };
+    try std.testing.fuzz(&ctx, Context.testOne, .{});
+}
