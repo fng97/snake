@@ -99,7 +99,7 @@ pub const State = struct {
 
     pub fn tick(state: *State, input_direction: ?Direction) void {
         if (!state.snake.alive) return;
-        defer state.tick_count += 1;
+        state.tick_count += 1;
 
         std.debug.assert(state.get_snake().len != 0);
         std.debug.assert(state.get_snake().len < Snake.max_length);

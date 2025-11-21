@@ -2,20 +2,17 @@ const std = @import("std");
 const snake = @import("snake.zig");
 const config = @import("config");
 
+var seed: u64 = undefined;
+
 pub fn main() !void {
-    const seed_global = blk: {
-        var seed: u64 = undefined;
+    var prng = std.Random.DefaultPrng.init(blk: {
         try std.posix.getrandom(std.mem.asBytes(&seed));
         break :blk seed;
-    };
-    var prng = std.Random.DefaultPrng.init(seed_global);
+    });
     const random = prng.random();
-
-    std.debug.print("Starting fuzzer with global seed: {d}\n", .{seed_global});
 
     var best_score: u64 = 0;
 
-    var seed = random.int(u64);
     var games: usize = 1;
     while (true) : ({
         seed = random.int(u64);
@@ -35,3 +32,15 @@ pub fn main() !void {
         }
     }
 }
+
+pub const panic = std.debug.FullPanic(struct {
+    /// Make sure we catch the seed in the case of a failure so it can be reproduced.
+    fn panic_handler(msg: []const u8, first_trace_addr: ?usize) noreturn {
+        std.debug.print(
+            "FUZZING FAILURE: {s}. Reproduce the following panic with:\n" ++
+                "\tzig build run -- --seed={d}  # PANIC ({s})\n",
+            .{ msg, seed, config.commit },
+        );
+        std.debug.defaultPanic(msg, first_trace_addr);
+    }
+}.panic_handler);
